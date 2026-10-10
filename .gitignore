@@ -1,0 +1,50 @@
+# --- Secrets and local config ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+dist/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# --- dbt ---
+target/
+dbt_packages/
+logs/
+.user.yml
+
+# --- Data files and exports ---
+*.csv
+*.xlsx
+*.parquet
+*.bak
+# keep dbt seed files tracked
+!**/seeds/**/*.csv
+
+# --- Power BI (PBIP project format) ---
+**/.pbi/localSettings.json
+**/.pbi/cache.abf
+
+# --- Editor and OS noise ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs and temp ---
+*.log
+*.tmp
