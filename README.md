@@ -1,5 +1,13 @@
 # AI Analytics Governance
 
+![Status](https://img.shields.io/badge/status-early%20setup-orange)
+![Python](https://img.shields.io/badge/python-3.14%2B-3776AB?logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![dbt](https://img.shields.io/badge/dbt-FF694B?logo=dbt&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?logo=docker&logoColor=white)
+![Poetry](https://img.shields.io/badge/Poetry-60A5FA?logo=poetry&logoColor=white)
+![Last commit](https://img.shields.io/github/last-commit/tonycloud40/ai-analytics-governance)
+
 A portable analytics platform built step by step: PostgreSQL as the warehouse, dbt for the transformations, and Docker to run both the same way on any machine.
 
 The first milestone is a Kimball-style data warehouse on top of the Sakila sample database.
