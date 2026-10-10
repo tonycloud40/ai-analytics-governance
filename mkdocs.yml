@@ -15,11 +15,13 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
+    - navigation.tabs
     - navigation.sections
     - content.code.copy
 
 markdown_extensions:
   - admonition
+  - attr_list
   - tables
   - pymdownx.highlight
   - pymdownx.superfences:
@@ -30,3 +32,9 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Local tools: local-tools.md
+  # Shortcuts to tools running on this machine (see docs/local-tools.md).
+  # They only work while the stacks are up, and the ports must match
+  # PGADMIN_HOST_PORT in docker/postgres/.env and DBT_DOCS_PORT in the Makefile.
+  - pgAdmin: http://localhost:15433
+  - dbt docs: http://localhost:8080
