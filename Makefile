@@ -47,6 +47,17 @@ DOCS_PORT ?= 8000
 # notice that Material for MkDocs prints about MkDocs 2.0 on every build.
 MKDOCS := NO_MKDOCS_2_WARNING=1 poetry run mkdocs
 
+# Git workflow settings, given on the command line:
+#   make ship BRANCH=readme-update MSG="Update the README"
+# FILES is what goes into the commit: everything by default, or a list such
+# as FILES="README.md Makefile". They are exported so the recipes read them
+# as shell variables, which keeps quotes inside MSG from breaking the command.
+# One limit: make reads a dollar sign itself, so write $$ for a $ in MSG.
+BRANCH ?=
+MSG    ?=
+FILES  ?= .
+export BRANCH MSG FILES
+
 .PHONY: help \
         postgres-up postgres-down postgres-logs postgres-ps \
         dbt-image dbt-up dbt-down dbt-logs dbt-shell dbt-ps \
@@ -54,6 +65,7 @@ MKDOCS := NO_MKDOCS_2_WARNING=1 poetry run mkdocs
         dbt-debug dbt-build dbt-run dbt-test \
         dbt-docs-generate dbt-docs-serve dbt-docs \
         docs-install docs-serve docs-build \
+        pr merge ship \
         up down ps logs reset
 
 # Help is generated from this file: a `##` comment on a target line is its
@@ -170,6 +182,37 @@ docs-serve: ## Open the docs site in the browser and reload on every save (block
 
 docs-build: ## Build the static site into site/ (--strict fails on broken links)
 	$(MKDOCS) build --strict
+
+##@
+##@ Git workflow     (pr and ship need BRANCH=x MSG="..."; both accept FILES="a b")
+##@   One change, one branch, one pull request. Start on main with your edits
+##@   saved but not committed. Nothing is changed until you type 'yes'.
+pr: ## Create the branch, commit, push and open a pull request
+	@test -n "$$BRANCH" || { echo 'Missing BRANCH. Usage: make pr BRANCH=my-branch MSG="What changed"'; exit 1; }
+	@test -n "$$MSG"    || { echo 'Missing MSG. Usage: make pr BRANCH=my-branch MSG="What changed"'; exit 1; }
+	@command -v gh >/dev/null || { echo "The GitHub CLI (gh) is not installed."; exit 1; }
+	@test "$$(git branch --show-current)" = "main" || \
+	 { echo "Start from main. You are on '$$(git branch --show-current)'."; exit 1; }
+	@test -n "$$(git status --porcelain -- $$FILES)" || { echo "Nothing to commit in: $$FILES"; exit 1; }
+	@echo "Branch:  $$BRANCH"; echo "Message: $$MSG"; echo "Changes:"; git status --short -- $$FILES
+	@read -r -p "Type 'yes' to continue: " ans; \
+	 [ "$$ans" = "yes" ] || { echo "Aborted. Nothing was changed."; exit 1; }
+	git switch -c "$$BRANCH"
+	git add -- $$FILES
+	git commit -m "$$MSG"
+	git push -u origin "$$BRANCH"
+	gh pr create --fill
+
+# --delete-branch removes the branch only after the merge has succeeded, so
+# the work can never be deleted before it is in main.
+merge: ## Merge this branch's pull request, delete the branch and return to main
+	@test "$$(git branch --show-current)" != "main" || \
+	 { echo "You are on main. Switch to the branch that has the pull request."; exit 1; }
+	gh pr merge --merge --delete-branch
+	git switch main
+	git pull
+
+ship: pr merge ## Do both: open the pull request, then merge it
 
 ##@
 ##@ Combined
