@@ -1,0 +1,93 @@
+# -----------------------------------------------------------------------------
+# AI Analytics Governance: Postgres and pgAdmin
+# -----------------------------------------------------------------------------
+# Start this stack first. The dbt stack joins its network, so dbt cannot
+# reach the "postgres" hostname until this one is up.
+#
+# From the repository root:
+#   make postgres-up
+# which runs:
+#   docker compose -f docker/postgres/docker-compose.yml up -d --wait
+#
+# Settings come from .env in this folder. Copy .env.example to .env and
+# change the passwords before the first start.
+#
+# The network is pinned to the fixed name "ai-governance-net" (bottom of this
+# file), so the dbt stack can join it as "external" whichever folder either
+# stack is launched from.
+
+volumes:
+    dbdata:
+    pgadmindata:
+
+services:
+  postgres:
+    container_name: app_postgres
+    image: "${POSTGRES_IMAGE}:${POSTGRES_VERSION}"
+    hostname: ${POSTGRES_HOST_NAME}
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+      PGDATA: ${POSTGRES_VOLUME_PATH}
+    volumes:
+       - dbdata:${POSTGRES_VOLUME_PATH}
+       # Init scripts run once, in filename order, against the POSTGRES_DB
+       # database on first container start (empty data volume only).
+       # 01 creates the mastersql role and hands it ownership of the db;
+       - ./${POSTGRES_INIT_SQL}:/docker-entrypoint-initdb.d/01_${POSTGRES_INIT_SQL}:ro
+       # 02 load the Sakila sample schema.
+       - ../metadata/Sakila/sakila-schema.sql:/docker-entrypoint-initdb.d/02_sakila-schema.sql:ro
+       # 03 load data.
+       - ../metadata/Sakila/sakila-insert-data.sql:/docker-entrypoint-initdb.d/03_sakila-insert-data.sql:ro
+       # 04 load the warehouse schema which is commented right now
+       #- ../metadata/Sakila/sakila-wh.sql:/docker-entrypoint-initdb.d/04_sakila-wh.sql:ro
+    ports:
+      - "${POSTGRES_HOST_PORT}:${POSTGRES_CONTAINER_PORT}"
+    healthcheck:
+      # Checked over TCP (-h localhost) on purpose: while the init scripts
+      # load Sakila on the first start, Postgres only listens on its local
+      # socket, so a socket check would report "ready" too early.
+      test: ["CMD-SHELL", "pg_isready -h localhost -p ${POSTGRES_CONTAINER_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      # Failures during the first-start data load do not count as unhealthy.
+      # The Sakila load took about 4 minutes on the first run, so allow 10.
+      # A healthy check ends the wait early, so later starts are not slower.
+      start_period: 600s
+    restart: unless-stopped
+    networks:
+      - ai-governance-net
+
+  pgadmin:
+    container_name: app_pgadmin
+    image: "${PGADMIN_IMAGE}:${PGADMIN_VERSION}"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: ${PGADMIN_CONFIG_SERVER_MODE}
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: ${PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED}
+    volumes:
+       - pgadmindata:${PGADMIN_VOLUME_PATH}
+       - ./${PGADMIN_SERVER_CONFIG}:/pgadmin4/servers.json:ro
+       # Lets you browse/run the Sakila sample scripts from
+       # pgAdmin's Query Tool file picker. Read-only: pgAdmin never needs
+       # to write back to the source files.
+       - ../metadata:/home/sample_dbs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PGADMIN_HOST_PORT}:${PGADMIN_CONTAINER_PORT}"
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - "/bin/echo '${POSTGRES_HOST_NAME}:${POSTGRES_CONTAINER_PORT}:*:${POSTGRES_USER}:${POSTGRES_PASSWORD}' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh"
+    restart: unless-stopped
+    networks:
+      - ai-governance-net
+    
+networks:
+    ai-governance-net:
+        name: ai-governance-net
