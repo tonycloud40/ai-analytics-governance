@@ -39,12 +39,21 @@ DBT_ARGS ?=
 # Where the dbt project lives on the host (checked by require-project).
 DBT_PROJECT_DIR := $(DOCKER_DIR)/dbt/$(PROJECT_NAME)
 
+# Port for the MkDocs preview. Different from DBT_DOCS_PORT, so the project
+# site and the dbt docs can be open at the same time.
+DOCS_PORT ?= 8000
+
+# Runs MkDocs from the Poetry environment. NO_MKDOCS_2_WARNING hides the
+# notice that Material for MkDocs prints about MkDocs 2.0 on every build.
+MKDOCS := NO_MKDOCS_2_WARNING=1 poetry run mkdocs
+
 .PHONY: help \
         postgres-up postgres-down postgres-logs postgres-ps \
         dbt-image dbt-up dbt-down dbt-logs dbt-shell dbt-ps \
         dbt-init require-project dbt-deps dbt-seed \
         dbt-debug dbt-build dbt-run dbt-test \
         dbt-docs-generate dbt-docs-serve dbt-docs \
+        docs-install docs-serve docs-build \
         up down ps logs reset
 
 # Help is generated from this file: a `##` comment on a target line is its
@@ -145,6 +154,22 @@ dbt-docs-serve: require-project dbt-up ## Serve dbt docs on DBT_DOCS_PORT (block
 	$(DBT_EXEC) dbt docs serve --port $(DBT_DOCS_PORT) --host 0.0.0.0
 
 dbt-docs: dbt-docs-generate dbt-docs-serve ## Generate docs, then serve them
+
+##@
+##@ Project documentation site (MkDocs)     (accepts DOCS_PORT=x)
+##@   This is the project's own site, built from docs/ and mkdocs.yml.
+##@   The dbt-docs targets above are a different site: the dbt models.
+docs-install: ## Install the documentation tools into the Poetry environment
+	poetry install --with docs
+
+# Blocks in the foreground: mkdocs serve is a long-running webserver that
+# rebuilds the page on every save. --open starts the browser when the first
+# build is done. Ctrl+C stops it.
+docs-serve: ## Open the docs site in the browser and reload on every save (blocks; Ctrl+C to stop)
+	$(MKDOCS) serve --dev-addr 127.0.0.1:$(DOCS_PORT) --open
+
+docs-build: ## Build the static site into site/ (--strict fails on broken links)
+	$(MKDOCS) build --strict
 
 ##@
 ##@ Combined
