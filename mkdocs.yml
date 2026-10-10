@@ -1,0 +1,32 @@
+site_name: AI Analytics Governance
+site_description: A portable analytics platform with PostgreSQL, dbt and Docker
+repo_url: https://github.com/tonycloud40/ai-analytics-governance
+repo_name: tonycloud40/ai-analytics-governance
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
