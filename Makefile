@@ -27,6 +27,12 @@ PROJECT_NAME ?= ai_analytics_governance
 # keeps `make dbt-docs-serve` and the container's published port in sync.
 -include $(DOCKER_DIR)/dbt/.env
 
+# The dbt container runs as you, so files it creates (dbt init, target/,
+# logs/) belong to you on the host instead of root. docker-compose.yml
+# reads these two values.
+export HOST_UID := $(shell id -u)
+export HOST_GID := $(shell id -g)
+
 # Fallback only if docker/dbt/.env is missing or doesn't define it.
 DBT_DOCS_PORT ?= 8080
 
@@ -37,7 +43,9 @@ DBT_EXEC := docker compose -f $(DBT_COMPOSE) exec -w /workspace/$(PROJECT_NAME) 
 DBT_ARGS ?=
 
 # Where the dbt project lives on the host (checked by require-project).
-DBT_PROJECT_DIR := $(DOCKER_DIR)/dbt/$(PROJECT_NAME)
+# The dbt projects live in dbt/, apart from the Docker runtime in docker/dbt/.
+DBT_DIR         := dbt
+DBT_PROJECT_DIR := $(DBT_DIR)/$(PROJECT_NAME)
 
 # Port for the MkDocs preview. Different from DBT_DOCS_PORT, so the project
 # site and the dbt docs can be open at the same time.
@@ -58,6 +66,15 @@ MSG    ?=
 FILES  ?= .
 export BRANCH MSG FILES
 
+# Issue settings, given on the command line:
+#   make issue TITLE="Add the dbt stack" BODY="What and why" LABEL=enhancement
+# BODY defaults to the title, and LABEL to enhancement (use bug for a fault,
+# documentation for docs work).
+TITLE ?=
+BODY  ?=
+LABEL ?= enhancement
+export TITLE BODY LABEL
+
 .PHONY: help \
         postgres-up postgres-down postgres-logs postgres-ps \
         dbt-image dbt-up dbt-down dbt-logs dbt-shell dbt-ps \
@@ -65,7 +82,7 @@ export BRANCH MSG FILES
         dbt-debug dbt-build dbt-run dbt-test \
         dbt-docs-generate dbt-docs-serve dbt-docs \
         docs-install docs-serve docs-build \
-        pr merge ship \
+        issues issue pr merge ship \
         up down ps logs reset
 
 # Help is generated from this file: a `##` comment on a target line is its
@@ -121,13 +138,13 @@ dbt-ps: ## Show dbt container status
 
 ##@
 ##@ dbt project lifecycle            (all accept PROJECT_NAME=x)
-##@   dbt-init uses --skip-profile-setup: docker/dbt/profiles.yml (bind-mounted to
-##@   /root/.dbt/profiles.yml) already defines the connection.
+##@   dbt-init uses --skip-profile-setup: docker/dbt/profiles.yml (read through
+##@   DBT_PROFILES_DIR=/dbt-config) already defines the connection.
 dbt-init: dbt-up ## Scaffold a new project via 'dbt init'
 	docker compose -f $(DBT_COMPOSE) exec dbt dbt init $(PROJECT_NAME) --skip-profile-setup
 	@echo ""
-	@echo "Project scaffolded at docker/dbt/$(PROJECT_NAME) (it lands on the host"
-	@echo "because /workspace is bind-mounted to docker/dbt)."
+	@echo "Project scaffolded at $(DBT_DIR)/$(PROJECT_NAME) (it lands on the host"
+	@echo "because /workspace is bind-mounted to $(DBT_DIR)/)."
 	@echo "Its dbt_project.yml defaults to 'profile: $(PROJECT_NAME)' -- since that"
 	@echo "matches the profile name in docker/dbt/profiles.yml, no edit is needed."
 	@echo "Next: make dbt-debug PROJECT_NAME=$(PROJECT_NAME)"
@@ -185,8 +202,18 @@ docs-build: ## Build the static site into site/ (--strict fails on broken links)
 
 ##@
 ##@ Git workflow     (pr and ship need BRANCH=x MSG="..."; both accept FILES="a b")
-##@   One change, one branch, one pull request. Start on main with your edits
-##@   saved but not committed. Nothing is changed until you type 'yes'.
+##@   Write the issue first, then: one change, one branch, one pull request.
+##@   Start on main with your edits saved but not committed. pr and ship change
+##@   nothing until you type 'yes'.
+issues: ## List the open issues
+	gh issue list
+
+issue: ## Create an issue assigned to me (needs TITLE="..."; accepts BODY="..." LABEL=x)
+	@test -n "$$TITLE" || { echo 'Missing TITLE. Usage: make issue TITLE="Add the dbt stack" BODY="What and why" LABEL=enhancement'; exit 1; }
+	@command -v gh >/dev/null || { echo "The GitHub CLI (gh) is not installed."; exit 1; }
+	gh issue create --title "$$TITLE" --body "$${BODY:-$$TITLE}" --label "$$LABEL" --assignee @me
+	@echo "Use this issue's number in your last commit message, e.g. (closes #N)."
+
 pr: ## Create the branch, commit, push and open a pull request
 	@test -n "$$BRANCH" || { echo 'Missing BRANCH. Usage: make pr BRANCH=my-branch MSG="What changed"'; exit 1; }
 	@test -n "$$MSG"    || { echo 'Missing MSG. Usage: make pr BRANCH=my-branch MSG="What changed"'; exit 1; }

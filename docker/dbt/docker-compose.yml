@@ -1,0 +1,55 @@
+# -----------------------------------------------------------------------------
+# AI Analytics Governance: dbt runtime (Postgres target)
+# -----------------------------------------------------------------------------
+# Start the Postgres stack first. This stack joins its network
+# ("ai-governance-net") to reach the "postgres" hostname.
+#
+# From the repository root:
+#   make dbt-up          # starts Postgres if needed, then this container
+#   make dbt-init        # first time only: scaffolds the dbt project
+#   make dbt-debug       # checks the connection
+#
+# Settings come from .env in this folder (copy .env.example). The Postgres
+# credentials come from ../postgres/.env, so they live in one place only.
+
+services:
+  dbt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${DBT_CONTAINER_NAME:-app_dbt}
+    hostname: ${DBT_HOSTNAME:-dbt}
+    # Run as the host user, so files dbt creates here (the project from
+    # dbt init, target/, logs/) belong to you and not to root. The Makefile
+    # sets HOST_UID and HOST_GID; 1000 is the usual first user on Linux.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    ports:
+      # dbt docs serve listens on this port inside the container, and the
+      # Makefile's dbt-docs-serve target passes the same value as --port.
+      - "${DBT_DOCS_PORT:-8080}:${DBT_DOCS_PORT:-8080}"
+    volumes:
+      # The dbt projects live in the repository's dbt/ folder, separate from
+      # this runtime folder. dbt init creates each project in a subfolder
+      # (dbt/<project name>).
+      - ../../dbt:/workspace
+      # This folder holds the connection profile (profiles.yml). dbt also
+      # writes a small .user.yml here, which git ignores.
+      - .:/dbt-config
+    working_dir: /workspace
+    env_file:
+      # Postgres host, port, user, password and database, from the Postgres stack.
+      - ../postgres/.env
+    environment:
+      DBT_PROFILES_DIR: /dbt-config
+      # A non-root user has no home folder in the image; dbt and git need one.
+      HOME: /tmp
+    # Keep the container running so the Makefile can "exec" dbt commands in it.
+    command: ["sleep", "infinity"]
+    networks:
+      - ai-governance-net
+    restart: unless-stopped
+
+networks:
+  ai-governance-net:
+    external: true
+    name: ai-governance-net
