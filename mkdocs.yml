@@ -32,6 +32,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Architecture: architecture.md
+  - Workflow: workflow.md
   - Local tools: local-tools.md
   # Shortcuts to tools running on this machine (see docs/local-tools.md).
   # They only work while the stacks are up, and the ports must match
