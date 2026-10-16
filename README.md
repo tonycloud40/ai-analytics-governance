@@ -126,7 +126,9 @@ These need the dbt stack:
 │   │   ├── docker_postgres_init.sql
 │   │   └── docker_pgadmin_servers.json
 │   ├── metadata/Sakila/          # Sakila schema and data, loaded on first start
-│   └── dbt/                      # dbt stack (next step)
+│   └── dbt/                      # dbt runtime: compose file, Dockerfile, profiles.yml
+├── dbt/
+│   └── ai_analytics_governance/  # dbt project: models, seeds, tests, macros
 ├── src/ai_analytics_governance/  # Python package
 └── tests/                        # Tests
 ```

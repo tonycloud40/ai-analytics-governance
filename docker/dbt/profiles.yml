@@ -1,0 +1,20 @@
+# dbt connection profile for the Postgres stack.
+#
+# The profile name must match PROJECT_NAME in the Makefile, because
+# "dbt init <name>" writes "profile: <name>" into dbt_project.yml.
+#
+# No credentials are written here: env_var() reads them at run time from
+# ../postgres/.env, which docker-compose.yml loads into the container.
+# That is why this file is safe to commit.
+ai_analytics_governance:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST_NAME', 'postgres') }}"
+      port: "{{ env_var('POSTGRES_CONTAINER_PORT', '5432') | as_number }}"
+      user: "{{ env_var('POSTGRES_USER') }}"
+      pass: "{{ env_var('POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('POSTGRES_DB') }}"
+      schema: public
+      threads: 4
